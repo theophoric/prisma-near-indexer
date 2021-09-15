@@ -4,7 +4,7 @@
 
 datasource db {
   provider = "postgresql"
-  url      = env("TESTNET_DB_URL")
+  url      = env("MAINNET_DB_URL")
 }
 
 generator client {
@@ -301,7 +301,7 @@ model Receipt {
   indexInChunk Int @map("index_in_chunk")
   includedInBlockTimestamp Decimal @db.Decimal(20,0) @map("included_in_block_timestamp")
   
-  predecessorAccount Account @relation("ReceiptPredecessor",fields: [predecessorAccountId], references: [accountId]) 
+  predecessorAccount Account? @relation("ReceiptPredecessor",fields: [predecessorAccountId], references: [accountId]) 
   predecessorAccountId String @map("predecessor_account_id")
 
   receiverAccount Account @relation("ReceiptReceiver", fields: [receiverAccountId], references:[accountId]) 
