@@ -4,7 +4,7 @@
 
 datasource db {
   provider = "postgresql"
-  url      = env("MAINNET_DB_URL")
+  url      = env("TESTNET_DB_URL")
 }
 
 generator client {
@@ -54,12 +54,14 @@ enum StateChangeReasonKind {
   POSTPONED_RECEIPT
   UPDATED_DELAYED_RECEIPTS
   VALIDATOR_ACCOUNTS_UPDATE
+  MIGRATION
 }
 
 model AccessKey {
   @@map("access_keys")
   @@id([publicKey, accountId])
-  @@index([accountId, lastUpdateBlockHeight])
+  @@index([accountId])
+  @@index([lastUpdateBlockHeight])
 
   publicKey String @map("public_key")
   account Account @relation(fields: [accountId], references: accountId)
@@ -74,15 +76,21 @@ model AccessKey {
 
 model AccountChange {
   @@map("account_changes")
-  @@unique([affectedAccountId, changedInBlockHash,causedByTransactionHash, causedByReceiptId])
-  @@index([affectedAccountId, changedInBlockHash, changedInBlockTimestamp,causedByReceiptId,causedByTransactionHash])
+  @@unique([affectedAccountId, changedInBlockHash, causedByTransactionHash, updateReason, affectedAccountNonstakedBalance,affectedAccountStakedBalance, affectedAccountStorageUsage])
+  @@index([indexInBlock])
+  @@index([affectedAccountId]) 
+  @@index([changedInBlockHash]) 
+  @@index([changedInBlockTimestamp])
+  @@index([causedByReceiptId])
+  @@index([causedByTransactionHash]) 
+
 
   id BigInt @db.BigInt @default(autoincrement()) @id @map("id")
   affectedAccount Account @relation(fields: [affectedAccountId], references:accountId) 
-  affectedAccountId String @map("affected_account_id")
+  affectedAccountId String @map("affected_account_id") @unique
   changedInBlockTimestamp Decimal @db.Decimal(20,0) @map("changed_in_block_timestamp")
-  changedInBlock Blocks @relation(fields: [changedInBlockHash], references:[blockHash]) 
-  changedInBlockHash String @map("changed_in_block_hash")
+  changedInBlock Block @relation(fields: [changedInBlockHash], references:[blockHash]) 
+  changedInBlockHash String @map("changed_in_block_hash") @unique
   causedByTransaction Transaction? @relation(fields: [causedByTransactionHash], references: [transactionHash]) 
   causedByTransactionHash String? @map("caused_by_transaction_hash")
   causedByReceipt Receipt? @relation(fields: [causedByReceiptId], references: receiptId) 
@@ -91,6 +99,7 @@ model AccountChange {
   affectedAccountNonstakedBalance Decimal @db.Decimal(45,0) @map("affected_account_nonstaked_balance")
   affectedAccountStakedBalance Decimal @db.Decimal(45,0) @map("affected_account_staked_balance")
   affectedAccountStorageUsage Decimal @db.Decimal(20,0) @map("affected_account_storage_usage")
+  indexInBlock Int @map("index_in_block")
 }
 
 model Account {
@@ -107,12 +116,16 @@ model Account {
   accessKeys AccessKey[]
   accountChanges AccountChange[] 
   signedActionReceipts ActionReceipt[] @relation("SignerAccount") 
-  signedTransactions Transaction[] 
-  receiptsAsPredecessor Receipt[] @relation("PredecessorAccount") 
-  receiptsAsReceiver Receipt[] @relation("ReceiverAccount") 
-  authoredBlocks Blocks[] 
+  signedTransactions Transaction[] @relation("TransactionSigner")
+  receivedTransactions Transaction[] @relation("TransactionReceiver")
+  receiptsAsPredecessor Receipt[] @relation("ReceiptPredecessor") 
+  receiptsAsReceiver Receipt[] @relation("ReceiptReceiver") 
+  actionsAsPredecessor ActionReceiptAction[] @relation("ActionPredecessorAccount")
+  actionsAsReceiver ActionReceiptAction[] @relation("ActionReceiverAccount")
+  authoredBlocks Block[] 
   authoredChunks Chunk[] 
-  executionOutcomes ExecutionOutcome[] 
+  executionOutcomes ExecutionOutcome[]
+  
 }
 
 model ActionReceiptAction {
@@ -123,6 +136,11 @@ model ActionReceiptAction {
   indexInActionReceipt Int @map("index_in_action_receipt")
   actionKind ActionKind @map("action_kind")
   args Json @db.JsonB @map("args")
+  receiptPredecessorAccount Account @relation("ActionPredecessorAccount", fields: [receiptPredecessorAccountId], references: accountId)
+  receiptPredecessorAccountId String @map("receipt_predecessor_account_id")
+  receiptReceiverAccount Account @relation("ActionReceiverAccount", fields: [receiptReceiverAccountId], references: accountId)
+  receiptReceiverAccountId String @map("receipt_receiver_account_id")
+  receiptIncludedInBlockTimestamp Decimal @db.Decimal(20,0) @map("receipt_included_in_block_timestamp")
 }
 
 model ActionReceiptInputData {
@@ -137,7 +155,8 @@ model ActionReceiptInputData {
 model ActionReceiptOutputData {
   @@map("action_receipt_output_data")
   @@id([outputDataId, outputToReceiptId])
-  @@index([outputToReceiptId, receiverAccountId])
+  @@index([outputToReceiptId])
+  @@index([receiverAccountId])
 
   outputDataId String @map("output_data_id")
   outputToReceipt ActionReceipt @relation(fields: [outputToReceiptId], references:[receiptId]) 
@@ -149,6 +168,7 @@ model ActionReceiptOutputData {
 model ActionReceipt {
   @@map("action_receipts")
   @@index([signerAccountId])
+  receipt Receipt @relation(fields: [receiptId], references:receiptId)
   receiptId String @id @map("receipt_id")
   signerAccount Account @relation("SignerAccount", fields: [signerAccountId], references: [accountId]) 
   signerAccountId String @map("signer_account_id")
@@ -159,12 +179,34 @@ model ActionReceipt {
   outputData ActionReceiptOutputData[] 
 }
 
-model Blocks {
+model AggregatedCirculatingSupply {
+  @@map("aggregated__circulating_supply")
+  computedAtBlockTimestamp Decimal @db.Decimal(20,0) @map("computed_at_block_timestamp")
+  computedAtBlock Block @relation(fields: [computedAtBlockHash], references:blockHash)
+  computedAtBlockHash String @map("computed_at_block_hash") @id
+  circulatingTokensSupply Decimal @db.Decimal(45,0) @map("circulating_tokens_supply")
+  totalTokensSupply Decimal @db.Decimal(45,0) @map("total_tokens_supply")
+  totalLockupContractsCount Int @map("total_lockup_contracts_count")
+  unfinishedLockupContractsCount Int @map("unfinished_lockup_contracts_count")
+  foundationLockedTokens Decimal @db.Decimal(45,0) @map("foundation_locked_tokens")
+  lockupsLockedTokens Decimal @db.Decimal(45,0)@map("lockups_locked_tokens")
+}
+
+model AggregatedLockups {
+  @@map("aggregated__lockups")
+  accountId String @unique @map("account_id")
+  creationBlockHeight Int  @map("creation_block_height")
+  deletionBlockHeight Int @map("deletion_block_height")
+}
+
+model Block {
   @@map("blocks")
-  @@index([blockHeight, blockHash, blockTimestamp])
+  @@index([blockHeight])
+  @@index([blockHash])
+  @@index([blockTimestamp])
   blockHash String @id @map("block_hash")
   blockHeight Decimal @db.Decimal(20,0) @map("block_height")
-  prevBlock Blocks @relation("PreviousBlock", fields: [prevBlockHash], references:blockHash) 
+  prevBlock Block @relation("PreviousBlock", fields: [prevBlockHash], references:blockHash) 
   prevBlockHash String @map("prev_block_hash")
   blockTimestamp Decimal @db.Decimal(20,0) @map("block_timestamp")
   totalSupply Decimal @db.Decimal(45,0) @map("total_supply")
@@ -172,12 +214,13 @@ model Blocks {
   authorAccount Account @relation(fields: [authorAccountId], references:[accountId]) 
   authorAccountId String  @map("author_account_id")
 
+  aggregatedCirculatingSupply AggregatedCirculatingSupply?
   accountChanges AccountChange[]
   chunks Chunk[] 
   transactions Transaction[] 
   receipts Receipt[] 
   executionOutcomes ExecutionOutcome[] 
-  nextBlock Blocks? @relation("PreviousBlock") 
+  nextBlock Block? @relation("PreviousBlock") 
 }
 
 
@@ -185,7 +228,7 @@ model Chunk {
   @@map("chunks")
   @@index([includedInBlockHash])
   chunkHash String @id @map("chunk_hash")
-  includedInBlock Blocks @relation(fields: [includedInBlockHash], references:[blockHash]) 
+  includedInBlock Block @relation(fields: [includedInBlockHash], references:[blockHash]) 
   includedInBlockHash String @map("included_in_block_hash")
   shardId Decimal @db.Decimal(20,0) @map("shard_id")
   signature String @map("signature")
@@ -196,7 +239,6 @@ model Chunk {
 
   transactions Transaction[] 
   receipts Receipt[] 
-  executionOutcomes ExecutionOutcome[] 
 }
 
 
@@ -204,6 +246,7 @@ model DataReceipt {
   @@map("data_receipts")
   @@index([receiptId])
   dataId String @id @map("data_id")
+  receipt Receipt @relation(fields:[receiptId], references:[receiptId])
   receiptId String  @map("receipt_id")
   data Bytes? @db.ByteA @map("data")
 }
@@ -213,53 +256,67 @@ model ExecutionOutcomeReceipt {
   @@id([executedReceiptId, indexInExecutionOutcome, producedReceiptId])
   @@index([producedReceiptId])
   
+  executedReceipt Receipt @relation("ExecutedReceipt",fields: [executedReceiptId], references: receiptId)
   executedReceiptId String  @map("executed_receipt_id")
   indexInExecutionOutcome Int @map("index_in_execution_outcome")
+  producedReceipt Receipt @relation("ProducedReceipt", fields:[producedReceiptId], references: receiptId)
   producedReceiptId String  @map("produced_receipt_id")
 }
 
 model ExecutionOutcome {
   @@map("execution_outcomes")
-  @@index([executedInBlockHash,receiptId])
+  @@index([executedInBlockHash])
+  @@index([receiptId])
+  // @@index([status])
 
   receiptId String @id @map("receipt_id")
-  executedInBlock Blocks @relation(fields:[executedInBlockHash], references: [blockHash]) 
+  executedInBlock Block @relation(fields:[executedInBlockHash], references: [blockHash]) 
   executedInBlockHash String  @map("executed_in_block_hash")
   executedInBlockTimestamp Decimal @db.Decimal(20,0)  @map("executed_in_block_timestamp")
-  executedInChunk Chunk @relation(fields:[executedInChunkHash], references: [chunkHash]) 
-  executedInChunkHash String @db.Text @map("executed_in_chunk_hash")
+  // executedInChunk Chunk @relation(fields:[executedInChunkHash], references: [chunkHash]) 
+  // executedInChunkHash String @db.Text @map("executed_in_chunk_hash")
   indexInChunk Int  @map("index_in_chunk")
   gasBurnt Decimal @db.Decimal(20,0)  @map("gas_burnt")
   tokensBurnt Decimal @db.Decimal(45,0) @map("tokens_burnt")
   executorAccount Account @relation(fields: [executorAccountId], references:[accountId]) 
   executorAccountId String  @map("executor_account_id")
-  status ExecutionOutcomeStatus @map("status")
+  // status ExecutionOutcomeStatus @map("status")
+  shardId Decimal @db.Decimal(20,0) @map("shard_id")
 }
 
 
 model Receipt {
   @@map("receipts")
-  @@index([includedInBlockHash,includedInBlockTimestamp,includedInChunkHash,predecessorAccountId,receiptId])
+  @@index([includedInBlockHash])
+  @@index([includedInBlockTimestamp])
+  @@index([includedInChunkHash])
+  @@index([predecessorAccountId])
+  @@index([receiptId])
+  @@index([originatedFromTransactionHash])
   receiptId String @id @map("receipt_id")
-  includedInBlock Blocks @relation(fields:[includedInBlockHash], references: [blockHash]) 
+  includedInBlock Block @relation(fields:[includedInBlockHash], references: [blockHash]) 
   includedInBlockHash String  @map("included_in_block_hash")
   includedInChunk Chunk @relation(fields:[includedInChunkHash], references: [chunkHash]) 
   includedInChunkHash String @map("included_in_chunk_hash")
   indexInChunk Int @map("index_in_chunk")
   includedInBlockTimestamp Decimal @db.Decimal(20,0) @map("included_in_block_timestamp")
   
-  predecessorAccount Account @relation("PredecessorAccount",fields: [predecessorAccountId], references: [accountId]) 
+  predecessorAccount Account @relation("ReceiptPredecessor",fields: [predecessorAccountId], references: [accountId]) 
   predecessorAccountId String @map("predecessor_account_id")
 
-  receiverAccount Account @relation("ReceiverAccount", fields: [receiverAccountId], references:[accountId]) 
+  receiverAccount Account @relation("ReceiptReceiver", fields: [receiverAccountId], references:[accountId]) 
   receiverAccountId String @map("receiver_account_id")
   
   receiptKind ReceiptKind @map("receipt_kind")
+  actionReceipt ActionReceipt?
+  dataReceipt DataReceipt?
+  executionOutcomeReceipt ExecutionOutcomeReceipt? @relation("ExecutedReceipt")
+  productionReceipt ExecutionOutcomeReceipt? @relation("ProducedReceipt")
 
   originatedFromTransaction Transaction @relation(fields:[originatedFromTransactionHash], references: [transactionHash]) 
   originatedFromTransactionHash String @map("originated_from_transaction_hash")
 
-
+  fromTransaction Transaction? @relation("TransactionReceipt")
   accountsCreated Account[] @relation("AccountCreated") 
   accountsDeleted Account[] @relation("AccountDeleted") 
   accessKeysCreated AccessKey[] @relation("AccessKeyCreated") 
@@ -270,22 +327,29 @@ model Receipt {
 
 model Transaction {
   @@map("transactions")
-  @@index([convertedIntoReceiptId, includedInBlockHash,includedInChunkHash, blockTimestamp,signerAccountId, signerPublicKey])
+  @@index([convertedIntoReceiptId])
+  @@index([includedInBlockHash])
+  @@index([includedInChunkHash])
+  @@index([blockTimestamp])
+  @@index([signerAccountId])
+  @@index([signerPublicKey])
+  @@index([receiverAccountId])
   transactionHash String @id @map("transaction_hash")
-  includedInBlock Blocks @relation(fields: [includedInBlockHash], references: blockHash) 
+  includedInBlock Block @relation(fields: [includedInBlockHash], references: blockHash) 
   includedInBlockHash String @map("included_in_block_hash")
   includedInChunk Chunk @relation(fields: [includedInChunkHash], references: chunkHash) 
   includedInChunkHash String @map("included_in_chunk_hash")
   indexInChunk Int @map("index_in_chunk")
   blockTimestamp Decimal @db.Decimal(20,0) @map("block_timestamp")
-  signerAccount Account @relation(fields: [signerAccountId], references:[accountId]) 
+  signerAccount Account @relation("TransactionSigner", fields: [signerAccountId], references:[accountId]) 
   signerAccountId String  @map("signer_account_id")
   signerPublicKey String  @map("signer_public_key")
   nonce Decimal @db.Decimal(20,0) @map("nonce")
-  // receiverAccount Account
+  receiverAccount Account @relation("TransactionReceiver", fields: [receiverAccountId], references: accountId)
   receiverAccountId String @map("receiver_account_id")
   signature String @map("signature")
-  // status public.executionOutcomeStatus 
+  status ExecutionOutcomeStatus
+  convertedIntoReceipt Receipt @relation("TransactionReceipt", fields: [convertedIntoReceiptId], references: receiptId)
   convertedIntoReceiptId String @map("converted_into_receipt_id")
   receiptConversionGasBurnt Decimal? @db.Decimal(20,0) @map("receipt_conversion_gas_burnt")
   receiptConversionTokensBurnt Decimal? @db.Decimal(45,0) @map("receipt_conversion_tokens_burnt")
@@ -296,7 +360,7 @@ model Transaction {
 
 model TransactionAction {
   @@map("transaction_actions")
-  @@id([transactionHash, indexInTransaction])
+  @@id([transactionHash, indexInTransaction, actionKind])
 
   transactionHash String  @map("transaction_hash")
   indexInTransaction Int @map("index_in_transaction")

@@ -1,0 +1,35 @@
+{
+  "name": "prisma-near-indexer",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "15.12.4",
+    "prisma": "3.0.2",
+    "ts-node": "10.2.1",
+    "typescript": "4.4.3"
+  },
+  "scripts": {
+    "dev": "ts-node ./script.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "3.0.2"
+  },
+  "engines": {
+    "node": ">=12.2.0"
+  },
+  "description": "Prisma schema / starter for the near indexer posgres database",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theophoric/prisma-near-indexer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/theophoric/prisma-near-indexer/issues"
+  },
+  "homepage": "https://github.com/theophoric/prisma-near-indexer#readme"
+}
