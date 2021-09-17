@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]>      <html class="no-js"> <!--<![endif]-->
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.19.1/cytoscape.min.js"></script>
+    </head>
+    <body>
+        <!--[if lt IE 7]>
+            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>
+        <![endif]-->
+        <div id="container"></div>
+        
+        <script src="data/txn_sample.js"></script>
+        <script>
+            
+            container = document.getElementById("container");
+            container.style.left = 0;
+            container.style.top = 0;
+            container.style.width = "100%";
+            container.style.height = "100%";
+            container.style.position = "absolute";
+
+            let nodes = [];
+            
+            DATA.forEach(txn => {
+                nodes.push({
+                    data: {
+                        id: txn.transactionHash,
+                        scratch:{
+                         name: "@" + txn.signerAccountId + "#" + txn.nonce
+                        } 
+                    }
+                    
+                    
+                })
+            })
+
+
+
+
+            var cy = cytoscape({
+            container: container,
+
+            layout: {
+                name: 'cose',
+                padding: 10
+            },
+            style: cytoscape.stylesheet()
+                .selector('node')
+                .style({
+                    'label': 'data(scratch.name)'
+                }),
+            // style: cytoscape.stylesheet()
+            //     .selector('node')
+            //     .style({
+            //         'shape': 'data(faveShape)',
+            //         'width': 'mapData(weight, 40, 80, 20, 60)',
+            //         'content': 'data(name)',
+            //         'text-valign': 'center',
+            //         'text-outline-width': 2,
+            //         'text-outline-color': 'data(faveColor)',
+            //         'background-color': 'data(faveColor)',
+            //         'color': '#fff'
+            //     })
+            //     .selector(':selected')
+            //     .style({
+            //         'border-width': 3,
+            //         'border-color': '#333'
+            //     })
+            //     .selector('edge')
+            //     .style({
+            //         'opacity': 0.666,
+            //         'width': 'mapData(strength, 70, 100, 2, 6)',
+            //         'target-arrow-shape': 'triangle',
+            //         'source-arrow-shape': 'circle',
+            //         'line-color': 'data(faveColor)',
+            //         'source-arrow-color': 'data(faveColor)',
+            //         'target-arrow-color': 'data(faveColor)'
+            //     })
+            //     .selector('edge.questionable')
+            //     .style({
+            //         'line-style': 'dotted',
+            //         'target-arrow-shape': 'diamond'
+            //     })
+            //     .selector('.faded')
+            //     .style({
+            //         'opacity': 0.25,
+            //         'text-opacity': 0
+            //     }),
+
+            elements: {
+                nodes
+            }
+            });
+
+
+        </script>
+    </body>
+</html>

@@ -4,7 +4,8 @@
 
 datasource db {
   provider = "postgresql"
-  url      = env("MAINNET_DB_URL")
+  url      = env("TESTNET_DB_URL")
+  // url = "postgresql://public_readonly:nearprotocol@104.199.89.51:5432/mainnet_explorer"
 }
 
 generator client {
@@ -154,14 +155,14 @@ model ActionReceiptInputData {
 
 model ActionReceiptOutputData {
   @@map("action_receipt_output_data")
-  @@id([outputDataId, outputToReceiptId])
-  @@index([outputToReceiptId])
+  @@id([outputDataId, outputFromReceiptId])
+  @@index([outputFromReceiptId])
   @@index([receiverAccountId])
 
   outputDataId String @map("output_data_id")
-  outputToReceipt ActionReceipt @relation(fields: [outputToReceiptId], references:[receiptId]) 
-  outputToReceiptId String @map("output_to_receipt_id")
-  // receiverAccount Account @relation("ReceiverAccount", fields: [receiverAccountId],
+  outputFromReceipt ActionReceipt @relation(fields: [outputFromReceiptId], references:[receiptId]) 
+  outputFromReceiptId String @map("output_from_receipt_id")
+  // receiverAccount Account @relation("ReceiverAccount", fields: [receiverAccountId], references: accountId)
   receiverAccountId String @map("receiver_account_id")
 }
 

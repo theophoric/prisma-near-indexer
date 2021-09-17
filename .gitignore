@@ -1,3 +1,6 @@
+# Personal
+NOTES
+
 # Logs
 logs
 *.log
@@ -51,3 +54,6 @@ typings/
 
 # Next.js build output
 .next
+
+.DS_Store
+dist/
